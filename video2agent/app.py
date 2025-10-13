@@ -28,7 +28,6 @@ async def start():
         "**Commands:**\n"
         "- `/video` - Switch to a new video\n"
         "- `/clear` - Clear chat history\n"
-        "- `/history` - View chat history"
     ).send()
 
     # Ask for video ID
@@ -43,8 +42,6 @@ async def start():
         video_id = extract_video_id(video_input)
 
         if video_id:
-            cl.user_session.set("video_id", video_id)
-
             # Show loading message
             msg = cl.Message(
                 content=f"🔄 Processing video: `{video_id}`...\n\nThis may take a moment."
@@ -55,6 +52,8 @@ async def start():
                 # Process the video
                 agent.process_youtube_video(video_id, languages=["en", "uk"])
 
+                # Update session only after successful processing
+                cl.user_session.set("video_id", video_id)
                 cl.user_session.set("video_processed", True)
 
                 # Update message
@@ -62,11 +61,13 @@ async def start():
                 await msg.update()
 
             except Exception as e:
-                msg.content = f"❌ Error processing video: {str(e)}\n\nPlease try again with a different video ID."
+                msg.content = f"❌ Error processing video: {str(e)}\n\nPlease use `/video` command to try a different video."
                 await msg.update()
+                # Don't set video as processed if it failed
+                cl.user_session.set("video_processed", False)
         else:
             await cl.Message(
-                content="❌ Invalid video ID or URL. Please restart and try again."
+                content="❌ Invalid video ID or URL. Please use `/video` command to try again."
             ).send()
 
 
@@ -126,23 +127,30 @@ async def main(message: cl.Message):
             new_video_id = extract_video_id(video_input)
 
             if new_video_id:
-                cl.user_session.set("video_id", new_video_id)
-
                 msg = cl.Message(content=f"🔄 Processing video: `{new_video_id}`...")
                 await msg.send()
 
                 try:
-                    agent.process_youtube_video(new_video_id, languages=["en", "uk"])
-                    cl.user_session.set("video_processed", True)
-                    # Clear history when switching videos
+                    # Clear history BEFORE processing new video
                     agent.clear_history()
 
-                    msg.content = f"✅ Video `{new_video_id}` has been processed successfully!\n\nChat history has been cleared. You can now ask questions about the video."
+                    # Process the new video (this will delete old transcript data)
+                    agent.process_youtube_video(new_video_id, languages=["en", "uk"])
+
+                    # Update session with new video ID
+                    cl.user_session.set("video_id", new_video_id)
+                    cl.user_session.set("video_processed", True)
+
+                    msg.content = f"✅ Video `{new_video_id}` has been processed successfully!\n\nChat history has been cleared. You can now ask questions about the new video."
                     await msg.update()
 
                 except Exception as e:
-                    msg.content = f"❌ Error processing video: {str(e)}"
+                    msg.content = (
+                        f"❌ Error processing video: {str(e)}\n\nPlease try again."
+                    )
                     await msg.update()
+                    # Reset to previous video state if processing failed
+                    cl.user_session.set("video_id", video_id)
             else:
                 await cl.Message(content="❌ Invalid video ID or URL.").send()
         return
@@ -174,7 +182,7 @@ async def main(message: cl.Message):
         return
 
     # Show thinking indicator
-    msg = cl.Message(content="")
+    msg = cl.Message(content="🤔 Thinking...")
     await msg.send()
 
     try:
@@ -187,13 +195,25 @@ async def main(message: cl.Message):
         else:
             response_text = str(answer)
 
+        # Ensure we have a valid response
+        if not response_text or response_text.strip() == "":
+            response_text = (
+                "I couldn't generate a response. Please try rephrasing your question."
+            )
+
         # Update message with the answer
         msg.content = response_text
         await msg.update()
 
     except Exception as e:
-        msg.content = f"❌ Error: {str(e)}"
+        error_message = f"❌ Error: {str(e)}"
+        msg.content = error_message
         await msg.update()
+
+        # Log the error for debugging
+        import traceback
+
+        print(f"Error in question answering: {traceback.format_exc()}")
 
 
 @cl.set_chat_profiles
