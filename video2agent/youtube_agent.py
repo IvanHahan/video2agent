@@ -1,8 +1,8 @@
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
+from .db import PineconeDB
 from .llm import OpenAIModel
-from .milvus_db import VectorDB
 from .prompts import SYSTEM_MESSAGE
 from .youtube import (
     get_video_transcript,
@@ -16,7 +16,7 @@ class YoutubeVideoAgent:
         self,
         video_id: str,
         llm: ChatOpenAI,
-        db: VectorDB,
+        db: PineconeDB,
         languages: list[str] = None,
         max_history_messages: int = 5,
     ):
@@ -78,7 +78,6 @@ class YoutubeVideoAgent:
                     "id": f"{self.video_id}_{i}",
                     "video_id": self.video_id,
                     "text": t.text,
-                    "keywords": t.text,
                     "start": t.start,
                     "duration": t.duration,
                 }
@@ -94,7 +93,6 @@ class YoutubeVideoAgent:
                     "id": self.video_id,
                     "title": video_info.title,
                     "text": video_info.description,
-                    "keywords": video_info.description,
                 }
             ],
             texts=[video_info.description],
