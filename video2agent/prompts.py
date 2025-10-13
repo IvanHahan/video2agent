@@ -20,6 +20,7 @@ Relevant Transcript Snippets:
 - Use **bold** for key points.
 - Use *italics* for emphasis.
 - Use ## headings for sections if needed.
+- Use ``` fence for code blocks if needed.
 
 Note: Do not use `transcript` or `snippet` words in your answer.
 
