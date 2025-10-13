@@ -222,3 +222,4 @@ logs/
 outputs/
 result/
 data/
+.chainlit
