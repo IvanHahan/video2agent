@@ -23,9 +23,11 @@ async def start():
         "Just provide me with a YouTube video ID or URL, and I'll process it for you.\n\n"
         "**Example:** `48ZK2JcoHyU` or `https://www.youtube.com/watch?v=48ZK2JcoHyU`\n\n"
         "**Commands:**\n"
-        "- `/video` - Switch to a new video\n"
+        "- `/video {video_id}` - Switch to a new video\n"
         "- `/clear` - Clear chat history\n"
     ).send()
+
+    return
 
     # Ask for video ID
     res = await cl.AskUserMessage(
@@ -106,58 +108,58 @@ async def main(message: cl.Message):
     video_id = cl.user_session.get("video_id")
     video_processed = cl.user_session.get("video_processed")
 
-    # Check if video is processed
-    if not video_processed or not video_id:
-        await cl.Message(
-            content="⚠️ Please provide a video ID first. Restart the chat to begin."
-        ).send()
-        return
-
     # Check for special commands
     if message.content.lower().startswith("/video"):
-        # Allow user to switch to a new video
-        res = await cl.AskUserMessage(
-            content="Please enter the new YouTube video ID or URL:", timeout=300
-        ).send()
+        # Extract video ID from command
+        parts = message.content.strip().split(maxsplit=1)
 
-        if res:
-            video_input = res["output"].strip()
-            new_video_id = extract_video_id(video_input)
+        if len(parts) < 2:
+            await cl.Message(
+                content="❌ Please provide a video ID. Usage: `/video {video_id}`"
+            ).send()
+            return
 
-            if new_video_id:
-                msg = cl.Message(content=f"🔄 Processing video: `{new_video_id}`...")
-                await msg.send()
+        video_input = parts[1].strip()
+        new_video_id = extract_video_id(video_input)
 
-                try:
-                    # Create a new agent with the new video
-                    new_agent = VideoAgent.build(
-                        video_id=new_video_id, languages=["en", "uk"]
-                    )
+        if new_video_id:
+            msg = cl.Message(content=f"🔄 Processing video: `{new_video_id}`...")
+            await msg.send()
 
-                    # Update session with new agent and video ID
-                    cl.user_session.set("agent", new_agent)
-                    cl.user_session.set("video_id", new_video_id)
-                    cl.user_session.set("video_processed", True)
+            try:
+                # Create a new agent with the new video
+                new_agent = VideoAgent.build(
+                    video_id=new_video_id, languages=["en", "uk"]
+                )
 
-                    msg.content = f"✅ Video `{new_video_id}` has been processed successfully!\n\nChat history has been cleared. You can now ask questions about the new video."
-                    await msg.update()
+                # Update session with new agent and video ID
+                cl.user_session.set("agent", new_agent)
+                cl.user_session.set("video_id", new_video_id)
+                cl.user_session.set("video_processed", True)
 
-                except Exception as e:
-                    msg.content = (
-                        f"❌ Error processing video: {str(e)}\n\nPlease try again."
-                    )
-                    await msg.update()
-                    # Reset to previous video state if processing failed
-                    cl.user_session.set("video_id", video_id)
-            else:
-                await cl.Message(content="❌ Invalid video ID or URL.").send()
+                msg.content = f"✅ Video `{new_video_id}` has been processed successfully!\n\nChat history has been cleared. You can now ask questions about the new video."
+                await msg.update()
+
+            except Exception as e:
+                msg.content = (
+                    f"❌ Error processing video: {str(e)}\n\nPlease try again."
+                )
+                await msg.update()
+                # Reset to previous video state if processing failed
+                cl.user_session.set("video_id", video_id)
+        else:
+            await cl.Message(content="❌ Invalid video ID or URL.").send()
         return
-
-    if message.content.lower().startswith("/clear"):
+    elif message.content.lower().strip() == "/clear":
         # Clear chat history
         agent.clear_history()
         await cl.Message(
             content="🗑️ Chat history has been cleared. Your next question will start a fresh conversation."
+        ).send()
+        return
+    elif not video_processed or not video_id:
+        await cl.Message(
+            content="⚠️ Please provide a video ID first. Restart the chat to begin."
         ).send()
         return
 

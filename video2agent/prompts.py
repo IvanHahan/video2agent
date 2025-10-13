@@ -16,7 +16,7 @@ Relevant Transcript Snippets:
 ## Formatting rules:
 - Use markdown for formatting.
 - Use emojis where appropriate to enhance the response.
-- Add [hh:mm:ss] timestamps for points referenced from the transcript.
+- Add [hh:mm:ss] timestamps for points referenced from the transcript. Do not add timestamps for statements not directly referenced.
 - Use **bold** for key points.
 - Use *italics* for emphasis.
 - Use ## headings for sections if needed.
