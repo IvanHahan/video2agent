@@ -4,12 +4,13 @@ Video2Agent is an AI-powered chatbot that allows you to have interactive convers
 
 ## Features
 
-- 💬 **Interactive Chat Interface**: Chat with any YouTube video using a web-based UI powered by Chainlit
-- 🔍 **Semantic Search**: Uses vector embeddings and Milvus database for intelligent content retrieval
+- 💬 **Dual Interface**: Choose between Chainlit or Streamlit web interfaces
+- 🔍 **Semantic Search**: Uses vector embeddings and Pinecone database for intelligent content retrieval
 - 🌍 **Multi-language Support**: Process videos in multiple languages including English and Ukrainian
 - 📝 **Transcript Processing**: Automatically fetches and processes video transcripts
 - 🧠 **Context-Aware Responses**: Maintains chat history for contextual conversations
 - 🔄 **Video Switching**: Easily switch between different videos in the same session
+- 🎯 **Flexible Vector Storage**: Supports both Pinecone and Milvus vector databases
 
 ## Installation
 
@@ -17,7 +18,7 @@ Video2Agent is an AI-powered chatbot that allows you to have interactive convers
 
 - Python 3.8+
 - OpenAI API key
-- Milvus (vector database)
+- Pinecone API key (or Milvus instance)
 
 ### Setup
 
@@ -35,18 +36,17 @@ pip install -r requirements.txt
 3. Set up environment variables:
 ```bash
 export OPENAI_API_KEY="your-openai-api-key"
+export PINECONE_API_KEY="your-pinecone-api-key"  # If using Pinecone
 ```
-
-4. Ensure Milvus is running (or configure connection to your Milvus instance)
 
 ## Usage
 
-### Web Interface (Chainlit)
+### Option 1: Chainlit Interface
 
-Run the interactive web interface:
+Run the interactive Chainlit web interface:
 
 ```bash
-chainlit run video2agent/app.py
+chainlit run chainlit_app.py
 ```
 
 Then open your browser and navigate to the provided URL (typically `http://localhost:8000`).
@@ -63,6 +63,23 @@ or
 ```
 /video https://www.youtube.com/watch?v=48ZK2JcoHyU
 ```
+
+### Option 2: Streamlit Interface
+
+Run the Streamlit web application:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+Then open your browser to the provided URL (typically `http://localhost:8501`).
+
+**Features:**
+- Clean sidebar for video input
+- Video thumbnail and metadata display
+- Real-time streaming responses
+- Persistent chat history
+- Easy video switching
 
 ### Programmatic Usage
 
@@ -84,27 +101,36 @@ for chunk in agent.stream(user_question):
 ## Project Structure
 
 ```
-app.py                  # Chainlit web interface
+chainlit_app.py         # Chainlit web interface
+streamlit_app.py        # Streamlit web interface
+requirements.txt        # Python dependencies
 video2agent/
+├── __init__.py
 ├── youtube_agent.py    # Main agent implementation
 ├── youtube.py          # YouTube video processing utilities
-├── milvus_db.py        # Vector database operations
 ├── llm.py              # LLM configuration
 ├── chains.py           # LangChain integration
 ├── prompts.py          # System prompts and templates
 ├── data_model.py       # Data models
-└── parsers.py          # Response parsers
+├── parsers.py          # Response parsers
+├── main.py             # Entry point and utilities
+└── db/
+    ├── __init__.py
+    ├── milvus_db.py    # Milvus vector database integration
+    └── pinecone_db.py  # Pinecone vector database integration
 ```
 
 ## Dependencies
 
-- **openai**: OpenAI API client
-- **pymilvus**: Milvus vector database client
+- **openai**: OpenAI API client for LLM interactions
 - **chainlit**: Interactive chat UI framework
+- **streamlit**: Modern web app framework for data applications
+- **pinecone**: Pinecone vector database client
 - **pytubefix**: YouTube video information retrieval
 - **youtube_transcript_api**: YouTube transcript fetching
 - **tiktoken**: Token counting for LLM context management
 - **langchain_openai**: LangChain OpenAI integration
+- **loguru**: Advanced logging library
 
 ## How It Works
 
@@ -112,12 +138,12 @@ video2agent/
    - Fetches the video's transcript using YouTube's API
    - Splits the transcript into manageable snippets
    - Creates vector embeddings of the content
-   - Stores embeddings in Milvus vector database
+   - Stores embeddings in your chosen vector database (Pinecone or Milvus)
 
 2. **Question Answering**: When you ask a question:
    - Your question is embedded and used to search for relevant video segments
-   - The most relevant transcript snippets are retrieved
-   - An LLM (OpenAI) generates a response based on the context
+   - The most relevant transcript snippets are retrieved from the vector database
+   - An LLM (OpenAI) generates a response based on the retrieved context
    - The response is streamed back to you in real-time
 
 3. **Context Management**: The agent maintains chat history to provide contextually aware responses across multiple interactions.
@@ -126,9 +152,12 @@ video2agent/
 
 You can customize the agent behavior by modifying:
 - **Languages**: Specify preferred transcript languages when building the agent
-- **Max History Messages**: Control how many previous messages are included in context
-- **LLM Model**: Configure the OpenAI model in `llm.py`
-- **Vector DB Settings**: Adjust Milvus connection settings in `milvus_db.py`
+- **Max History Messages**: Control how many previous messages are included in context (default: 5)
+- **LLM Model**: Configure the OpenAI model in `video2agent/llm.py`
+- **Vector DB Settings**: 
+  - Pinecone: Configure in `video2agent/db/pinecone_db.py`
+  - Milvus: Configure in `video2agent/db/milvus_db.py`
+- **UI Preference**: Choose between Chainlit or Streamlit based on your needs
 
 ## Contributing
 
@@ -141,6 +170,7 @@ This project is open source and available under the MIT License.
 ## Acknowledgments
 
 - Built with [LangChain](https://github.com/langchain-ai/langchain)
-- UI powered by [Chainlit](https://github.com/Chainlit/chainlit)
-- Vector storage by [Milvus](https://milvus.io/)
+- UI powered by [Chainlit](https://github.com/Chainlit/chainlit) and [Streamlit](https://streamlit.io/)
+- Vector storage by [Pinecone](https://www.pinecone.io/) and [Milvus](https://milvus.io/)
 - LLM by [OpenAI](https://openai.com/)
+- YouTube data fetching via [pytubefix](https://github.com/JuanBindez/pytubefix) and [youtube-transcript-api](https://github.com/jdepoix/youtube-transcript-api)
