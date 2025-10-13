@@ -123,7 +123,7 @@ class VectorDB:
             documents = []
             for match in results.matches:
                 doc = {
-                    "_id": match.id,
+                    "id": match.id,
                     "distance": match.score,  # Pinecone returns similarity score
                     **match.metadata,
                 }
