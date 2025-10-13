@@ -5,3 +5,4 @@ pytubefix
 youtube_transcript_api
 tiktoken
 langchain_openai
+loguru
