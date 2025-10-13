@@ -2,6 +2,7 @@ openai
 pymilvus
 pymilvus[model]
 chainlit
+streamlit
 pytubefix
 youtube_transcript_api
 tiktoken
