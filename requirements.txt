@@ -1,5 +1,6 @@
 openai
 pymilvus
+pymilvus[model]
 chainlit
 pytubefix
 youtube_transcript_api

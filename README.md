@@ -84,8 +84,8 @@ for chunk in agent.stream(user_question):
 ## Project Structure
 
 ```
+app.py                  # Chainlit web interface
 video2agent/
-├── app.py              # Chainlit web interface
 ├── youtube_agent.py    # Main agent implementation
 ├── youtube.py          # YouTube video processing utilities
 ├── milvus_db.py        # Vector database operations
