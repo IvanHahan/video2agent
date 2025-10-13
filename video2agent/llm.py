@@ -1,8 +1,9 @@
 import os
-from typing import Any, List, Optional
+from typing import Any, Iterator, List, Optional
 
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import LLM
+from langchain_core.outputs import GenerationChunk
 from openai import OpenAI
 from pydantic import Field
 
@@ -57,3 +58,35 @@ class OpenAIModel(LLM):
             for s in stop:
                 text = text.split(s)[0]
         return text
+
+    def _stream(
+        self,
+        prompt: str,
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        **kwargs: Any,
+    ) -> Iterator[GenerationChunk]:
+        """Stream responses from GPT-5 Nano via OpenAI Responses API."""
+        stream = self.client.responses.create(
+            model=self.model,
+            input=[{"role": "user", "content": prompt}],
+            text={"verbosity": self.verbosity},
+            reasoning={"effort": self.reasoning_effort},
+            stream=True,
+        )
+
+        for event in stream:
+            if event.type == "response.created":
+                pass
+            elif event.type == "response.output_text.delta":
+                text = event.delta
+                yield GenerationChunk(text=text)
+
+                if run_manager:
+                    run_manager.on_llm_new_token(text)
+            elif event.type == "response.completed":
+                pass
+            elif event.type == "error":
+                pass
+
+                # Check for stop sequences

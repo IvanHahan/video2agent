@@ -163,47 +163,24 @@ async def main(message: cl.Message):
         ).send()
         return
 
-    if message.content.lower().startswith("/history"):
-        # Show current chat history
-        history = agent.get_history()
-        if not history:
-            await cl.Message(content="📭 No chat history yet.").send()
-        else:
-            history_text = f"📜 **Chat History** ({len(history)} messages):\n\n"
-            for i, msg in enumerate(history, 1):
-                role = "**You**" if msg["role"] == "user" else "**Assistant**"
-                content = (
-                    msg["content"][:100] + "..."
-                    if len(msg["content"]) > 100
-                    else msg["content"]
-                )
-                history_text += f"{i}. {role}: {content}\n\n"
-            await cl.Message(content=history_text).send()
-        return
-
-    # Show thinking indicator
-    msg = cl.Message(content="🤔 Thinking...")
+    # Create an empty message to stream into
+    msg = cl.Message(content="")
     await msg.send()
 
     try:
-        # Get answer from agent
-        answer = agent.run(message.content, video_id)
-
-        # Extract content from the response
-        if hasattr(answer, "content"):
-            response_text = answer.content
-        else:
-            response_text = str(answer)
+        # Stream answer from agent
+        full_response = ""
+        for chunk in agent.stream(message.content, video_id):
+            full_response += chunk
+            msg.content = full_response
+            await msg.update()
 
         # Ensure we have a valid response
-        if not response_text or response_text.strip() == "":
-            response_text = (
+        if not full_response or full_response.strip() == "":
+            msg.content = (
                 "I couldn't generate a response. Please try rephrasing your question."
             )
-
-        # Update message with the answer
-        msg.content = response_text
-        await msg.update()
+            await msg.update()
 
     except Exception as e:
         error_message = f"❌ Error: {str(e)}"

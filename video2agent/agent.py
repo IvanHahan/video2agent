@@ -107,6 +107,59 @@ class VideoAgent:
 
         return response
 
+    def stream(self, user_question, video_id: str):
+        """Stream responses from the agent."""
+        # Retrieve relevant transcript snippets from the database
+        relevant_snippets = self.db.search(
+            collection="transcripts",
+            text=user_question,
+            filter=f"video_id == '{video_id}'",
+            output_fields=["text"],
+            top_k=5,
+        )
+        video_info = self.db.get(
+            collection="videos",
+            ids=[video_id],
+            output_fields=["title", "text"],
+        )
+
+        # Build the context for the current question
+        transcript_text = "\n".join([snippet["text"] for snippet in relevant_snippets])
+
+        # Build messages list: system + history + current question
+        messages = [
+            SystemMessage(
+                content=SYSTEM_MESSAGE.format(
+                    video_title=video_info[0]["title"] if video_info else "",
+                    video_description=video_info[0]["text"] if video_info else "",
+                    transcript_text=transcript_text,
+                )
+            )
+        ]
+
+        # Add chat history messages
+        for msg in self.chat_history:
+            if msg["role"] == "user":
+                messages.append(HumanMessage(content=msg["content"]))
+            elif msg["role"] == "assistant":
+                messages.append(AIMessage(content=msg["content"]))
+
+        # Add current question with context
+        messages.append(HumanMessage(user_question))
+
+        # Track the conversation in history
+        self._add_to_history("user", user_question)
+
+        # Stream the response
+        full_response = ""
+        for chunk in self.llm.stream(messages):
+            chunk_content = chunk.content if hasattr(chunk, "content") else str(chunk)
+            full_response += chunk_content
+            yield chunk_content
+
+        # Add full response to history after streaming is complete
+        self._add_to_history("assistant", full_response)
+
     def _add_to_history(self, role: str, content: str):
         """Add a message to chat history and maintain max length."""
         self.chat_history.append({"role": role, "content": content})
