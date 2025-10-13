@@ -1,5 +1,8 @@
+import os
+
 import chainlit as cl
 
+print(os.getenv("PYTHONPATH"))
 from video2agent.youtube_agent import YoutubeVideoAgent
 
 # Initialize the agent globally
