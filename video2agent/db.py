@@ -1,8 +1,6 @@
-import datetime
 import os
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
-import numpy as np
 from dotenv import load_dotenv
 from loguru import logger
 from pymilvus import (
@@ -67,7 +65,7 @@ class VectorDB:
             )
             self._setup_db()
         except Exception as e:
-            logger.error("Failed to initialize VectorDB: %s", str(e))
+            logger.error(f"Failed to initialize VectorDB: {str(e)}")
             raise
 
     def _create_milvus_client(self):
@@ -139,7 +137,7 @@ class VectorDB:
                 results = [r for r in results if r["distance"] <= threshold]
             return results
         except Exception as e:
-            logger.error("Search failed for collection %s: %s", collection, str(e))
+            logger.error(f"Search failed for collection {collection}: {str(e)}")
             return []
 
     def _hybrid_search(
@@ -200,7 +198,7 @@ class VectorDB:
             return results[0] if results else []
 
         except Exception as e:
-            logger.error("Dynamic hybrid search failed: %s", str(e))
+            logger.error(f"Dynamic hybrid search failed: {str(e)}")
             return []
 
     def _build_filter_expression(
@@ -238,14 +236,13 @@ class VectorDB:
             )
             return results
         except Exception as e:
-            logger.error("Get by IDs failed for collection %s: %s", collection, str(e))
+            logger.error(f"Get by IDs failed for collection {collection}: {str(e)}")
             return []
 
     def upsert(
         self,
         collection: str,
         documents: List[Dict],
-        image_inputs: List[Union[str, np.ndarray]],
         keywords: Optional[List[str]] = None,
         texts: Optional[List[str | float]] = None,
         insert_meta=True,
@@ -267,12 +264,6 @@ class VectorDB:
             List of document IDs
         """
         try:
-            if len(documents) != len(image_inputs):
-                raise ValueError("Number of documents must match number of images")
-
-            # Prepare documents with metadata
-            if insert_meta:
-                documents = self._prepare_documents(documents)
 
             # Add keywords and descriptions to documents
             for i, doc in enumerate(documents):
@@ -300,17 +291,6 @@ class VectorDB:
         except Exception as e:
             logger.error(f"Upsert failed for collection {collection}: {str(e)}")
             raise
-
-    def _prepare_documents(self, documents: List[Dict]) -> List[Dict]:
-        """Prepare documents by adding metadata and generating IDs."""
-        prepared_docs = []
-        for doc in documents:
-            if "timestamp" not in doc:
-                doc["timestamp"] = datetime.datetime.now(
-                    datetime.timezone.utc
-                ).timestamp()
-            prepared_docs.append(doc)
-        return prepared_docs
 
     def delete(self, collection: str, filter_expr: str) -> int:
         """
@@ -343,7 +323,7 @@ class VectorDB:
                 "stats": stats,
             }
         except Exception as e:
-            logger.error("Failed to get collection info for %s: %s", collection, str(e))
+            logger.error(f"Failed to get collection info for {collection}: {str(e)}")
             return {"exists": False, "error": str(e)}
 
     def _is_collection_empty(self, collection: str) -> bool:
@@ -358,7 +338,7 @@ class VectorDB:
             return row_count == 0
         except Exception as e:
             logger.warning(
-                "Failed to check if collection %s is empty: %s", collection, str(e)
+                f"Failed to check if collection {collection} is empty: {str(e)}"
             )
             return True  # Assume empty if we can't check
 
@@ -371,7 +351,7 @@ class VectorDB:
             logger.info("Vector database setup completed successfully")
 
         except Exception as e:
-            logger.error("Database setup failed: %s", str(e))
+            logger.error(f"Database setup failed: {str(e)}")
             raise
 
     def _create_collection_schema(self, auto_id: bool = False) -> object:
@@ -386,7 +366,7 @@ class VectorDB:
         collection_name = "videos"
         if self.client.has_collection(collection_name):
             return
-            # self.client.drop_collection(collection_name)
+            self.client.drop_collection(collection_name)
 
         schema = self._create_collection_schema(auto_id=False)  #
 
@@ -403,9 +383,15 @@ class VectorDB:
             max_length=MAX_VARCHAR_LENGTH,
         )
         schema.add_field(
-            field_name="description",
+            field_name="text",
             datatype=DataType.VARCHAR,
             max_length=MAX_VARCHAR_LENGTH,
+        )
+        schema.add_field(
+            field_name="keywords",
+            datatype=DataType.VARCHAR,
+            max_length=MAX_VARCHAR_LENGTH,
+            enable_analyzer=True,
         )
         schema.add_field(
             field_name="sparse_embedding",
@@ -418,18 +404,16 @@ class VectorDB:
         )
 
         index_params = self.client.prepare_index_params()
-        # index_params.add_index(field_name="id", index_type="AUTOINDEX")
         index_params.add_index(field_name="id", index_type="AUTOINDEX")
-        index_params.add_index(field_name="video_id", index_type="AUTOINDEX")
-        index_params.add_index(
-            field_name="sparse_embedding",
-            index_type="AUTOINDEX",
-            metric_type="BM25",
-        )
         index_params.add_index(
             field_name="dense_embedding",
             index_type="AUTOINDEX",
             metric_type="IP",
+        )
+        index_params.add_index(
+            field_name="sparse_embedding",
+            index_type="AUTOINDEX",
+            metric_type="BM25",
         )
 
         bm25_function = Function(
@@ -451,7 +435,7 @@ class VectorDB:
         """Set up the transcripts collection."""
         collection_name = "transcripts"
         if self.client.has_collection(collection_name):
-            # return
+            return
             self.client.drop_collection(collection_name)
 
         schema = self._create_collection_schema(auto_id=False)  #
@@ -467,6 +451,12 @@ class VectorDB:
             field_name="video_id",
             datatype=DataType.VARCHAR,
             max_length=MAX_ID_LENGTH,
+        )
+        schema.add_field(
+            field_name="keywords",
+            datatype=DataType.VARCHAR,
+            max_length=MAX_VARCHAR_LENGTH,
+            enable_analyzer=True,
         )
         schema.add_field(
             field_name="text",
@@ -547,10 +537,6 @@ class VectorDB:
             field_name="text",
             datatype=DataType.VARCHAR,
             max_length=MAX_VARCHAR_LENGTH,
-        )
-        schema.add_field(
-            field_name="timestamp",
-            datatype=DataType.FLOAT,
         )
         schema.add_field(
             field_name="sparse_embedding",

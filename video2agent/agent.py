@@ -2,6 +2,7 @@ from langchain.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from .db import VectorDB
+from .llm import OpenAIModel
 from .prompts import SYSTEM_MESSAGE
 from .youtube import (
     get_video_transcript,
@@ -46,7 +47,6 @@ class VideoAgent:
         # Merge transcript snippets to fit within token limits
         merged_transcript = merge_transcript_snippets(transcript, max_tokens=500)
         # Store in the database
-        self.db.upsert("transcripts", merged_transcript, video_id)
 
         self.db.upsert(
             collection="transcripts",
@@ -59,9 +59,9 @@ class VideoAgent:
                     "start": t.start,
                     "duration": t.duration,
                 }
-                for i, t in enumerate(transcript)
+                for i, t in enumerate(merged_transcript)
             ],
-            texts=[t.text for t in transcript],
+            texts=[t.text for t in merged_transcript],
         )
 
         self.db.upsert(
@@ -70,22 +70,26 @@ class VideoAgent:
                 {
                     "id": video_id,
                     "title": video_info.title,
-                    "description": video_info.description,
+                    "text": video_info.description,
+                    "keywords": video_info.description,
                 }
             ],
+            texts=[video_info.description],
         )
 
     def run(self, user_question, video_id: str):
         # Retrieve relevant transcript snippets from the database
         relevant_snippets = self.db.search(
             collection="transcripts",
-            query=user_question,
-            filter=f"video_id == {video_id}",
-            k=5,
+            text=user_question,
+            filter=f"video_id == '{video_id}'",
+            output_fields=["text"],
+            top_k=5,
         )
         video_info = self.db.get(
             collection="videos",
             ids=[video_id],
+            output_fields=["title", "text"],
         )
 
         # Create the chat template
@@ -94,7 +98,7 @@ class VideoAgent:
         # Format the prompt with the retrieved data
         formatted_prompt = template.format_messages(
             title=video_info[0]["title"] if video_info else "",
-            description=video_info[0]["description"] if video_info else "",
+            description=video_info[0]["text"] if video_info else "",
             transcript_snippets="\n".join(
                 [snippet["text"] for snippet in relevant_snippets]
             ),
@@ -104,4 +108,10 @@ class VideoAgent:
         # Run the LLM with the formatted prompt
         response = self.llm.invoke(formatted_prompt)
 
-        return response.content
+        return response
+
+    @classmethod
+    def build(cls):
+        llm = OpenAIModel()
+        db = VectorDB()
+        return cls(llm, db)
