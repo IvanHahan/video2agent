@@ -1,6 +1,6 @@
 import chainlit as cl
 
-from video2agent.agent import VideoAgent
+from video2agent.youtube_agent import YoutubeVideoAgent
 
 # Initialize the agent globally
 agent = None
@@ -26,49 +26,6 @@ async def start():
         "- `/video {video_id}` - Switch to a new video\n"
         "- `/clear` - Clear chat history\n"
     ).send()
-
-    return
-
-    # Ask for video ID
-    res = await cl.AskUserMessage(
-        content="Please enter the YouTube video ID or URL:", timeout=300
-    ).send()
-
-    if res:
-        video_input = res["output"].strip()
-
-        # Extract video ID from URL if necessary
-        video_id = extract_video_id(video_input)
-
-        if video_id:
-            # Show loading message
-            msg = cl.Message(
-                content=f"🔄 Processing video: `{video_id}`...\n\nThis may take a moment."
-            )
-            await msg.send()
-
-            try:
-                # Create agent with the video (processing happens in __init__)
-                agent = VideoAgent.build(video_id=video_id, languages=["en", "uk"])
-
-                # Update session only after successful processing
-                cl.user_session.set("agent", agent)
-                cl.user_session.set("video_id", video_id)
-                cl.user_session.set("video_processed", True)
-
-                # Update message
-                msg.content = f"✅ Video `{video_id}` has been processed successfully!\n\nYou can now ask questions about the video."
-                await msg.update()
-
-            except Exception as e:
-                msg.content = f"❌ Error processing video: {str(e)}\n\nPlease use `/video` command to try a different video."
-                await msg.update()
-                # Don't set video as processed if it failed
-                cl.user_session.set("video_processed", False)
-        else:
-            await cl.Message(
-                content="❌ Invalid video ID or URL. Please use `/video` command to try again."
-            ).send()
 
 
 def extract_video_id(input_str: str) -> str:
@@ -128,7 +85,7 @@ async def main(message: cl.Message):
 
             try:
                 # Create a new agent with the new video
-                new_agent = VideoAgent.build(
+                new_agent = YoutubeVideoAgent.build(
                     video_id=new_video_id, languages=["en", "uk"]
                 )
 

@@ -11,7 +11,7 @@ from .youtube import (
 )
 
 
-class VideoAgent:
+class YoutubeVideoAgent:
     def __init__(
         self,
         video_id: str,
