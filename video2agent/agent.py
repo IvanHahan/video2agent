@@ -1,4 +1,4 @@
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from .db import VectorDB
@@ -72,37 +72,37 @@ class VideoAgent:
         )
 
         # Build the context for the current question
-        context = f"""Based on the following video information and transcript snippets, please answer the user's question.
-
-Video Title: {video_info[0]["title"] if video_info else ""}
-Video Description: {video_info[0]["text"] if video_info else ""}
-
-Relevant Transcript Snippets:
-{"\n".join([snippet["text"] for snippet in relevant_snippets])}
-
-User Question: {user_question}
-
-Please provide a comprehensive answer based on the video content."""
+        transcript_text = "\n".join([snippet["text"] for snippet in relevant_snippets])
 
         # Build messages list: system + history + current question
-        messages = [SystemMessage(content=SYSTEM_MESSAGE)]
-        
+        messages = [
+            SystemMessage(
+                content=SYSTEM_MESSAGE.format(
+                    video_title=video_info[0]["title"] if video_info else "",
+                    video_description=video_info[0]["text"] if video_info else "",
+                    transcript_text=transcript_text,
+                )
+            )
+        ]
+
         # Add chat history messages
         for msg in self.chat_history:
             if msg["role"] == "user":
                 messages.append(HumanMessage(content=msg["content"]))
             elif msg["role"] == "assistant":
                 messages.append(AIMessage(content=msg["content"]))
-        
+
         # Add current question with context
-        messages.append(HumanMessage(content=context))
+        messages.append(HumanMessage(user_question))
 
         # Run the LLM with the message list
         response = self.llm.invoke(messages)
 
         # Track the conversation in history
         self._add_to_history("user", user_question)
-        response_content = response.content if hasattr(response, "content") else str(response)
+        response_content = (
+            response.content if hasattr(response, "content") else str(response)
+        )
         self._add_to_history("assistant", response_content)
 
         return response
@@ -110,15 +110,15 @@ Please provide a comprehensive answer based on the video content."""
     def _add_to_history(self, role: str, content: str):
         """Add a message to chat history and maintain max length."""
         self.chat_history.append({"role": role, "content": content})
-        
+
         # Keep only the last N messages (counting both user and assistant messages)
         if len(self.chat_history) > self.max_history_messages:
-            self.chat_history = self.chat_history[-self.max_history_messages:]
-    
+            self.chat_history = self.chat_history[-self.max_history_messages :]
+
     def clear_history(self):
         """Clear the chat history."""
         self.chat_history = []
-    
+
     def get_history(self) -> list:
         """Get the current chat history."""
         return self.chat_history.copy()
