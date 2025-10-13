@@ -217,7 +217,7 @@ class VectorDB:
             raise
 
     def delete(
-        self, collection: str, filter_expr: Dict = None, ids: List[str] = None
+        self, collection: str, filter: Dict = None, ids: List[str] = None
     ) -> int:
         """
         Delete documents from an index.
@@ -237,8 +237,8 @@ class VectorDB:
                 index.delete(ids=ids, namespace=self.namespace)
                 logger.info(f"Deleted {len(ids)} documents from index {collection}")
                 return len(ids)
-            elif filter_expr:
-                index.delete(filter=filter_expr, namespace=self.namespace)
+            elif filter:
+                index.delete(filter=filter, namespace=self.namespace)
                 logger.info(
                     f"Deleted documents matching filter from index {collection}"
                 )

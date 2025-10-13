@@ -30,25 +30,12 @@ class YoutubeVideoAgent:
         if languages is None:
             languages = ["en"]
         self._process_youtube_video(languages)
-        self.video_info = self.db.get(
-            collection="videos",
-            ids=[self.video_id],
-            output_fields=["title", "text"],
-        )
 
     def __del__(self):
         """Destructor to clean up video data when the agent instance is destroyed."""
         try:
             # Delete all transcript snippets for this video
-            self.db.delete(
-                collection="transcripts", filter_expr=f"video_id == '{self.video_id}'"
-            )
-
-            # Delete the video metadata
-            self.db.delete(
-                collection="videos",
-                ids=[self.video_id],
-            )
+            self.db.delete(collection="transcripts", filter={"video_id": self.video_id})
         except Exception as e:
             # Silently handle errors during cleanup to avoid issues during shutdown
             pass
@@ -56,15 +43,9 @@ class YoutubeVideoAgent:
     def _process_youtube_video(self, languages: list[str]):
         """Process the video and store its transcript in the vector database."""
         # Check if video already exists in the database
-        existing_video = self.db.get(
-            collection="videos",
-            ids=[self.video_id],
-            output_fields=["id"],
-        )
-        if existing_video:
-            return
+
         # Fetch video info and transcript
-        video_info = get_youtube_video_info(self.video_id)
+        self.video_info = get_youtube_video_info(self.video_id)
         transcript = get_video_transcript(self.video_id, languages=languages)
 
         # Merge transcript snippets to fit within token limits
@@ -86,25 +67,12 @@ class YoutubeVideoAgent:
             texts=[t.text for t in merged_transcript],
         )
 
-        self.db.upsert(
-            collection="videos",
-            documents=[
-                {
-                    "id": self.video_id,
-                    "title": video_info.title,
-                    "text": video_info.description,
-                }
-            ],
-            texts=[video_info.description],
-        )
-
     def run(self, user_question: str):
         # Retrieve relevant transcript snippets from the database
         relevant_snippets = self.db.search(
             collection="transcripts",
             text=user_question,
-            filter=f"video_id == '{self.video_id}'",
-            output_fields=["text"],
+            filter={"video_id": self.video_id},
             top_k=5,
         )
 
@@ -152,14 +120,8 @@ class YoutubeVideoAgent:
         relevant_snippets = self.db.search(
             collection="transcripts",
             text=user_question,
-            filter=f"video_id == '{self.video_id}'",
-            output_fields=["text"],
+            filter={"video_id": self.video_id},
             top_k=5,
-        )
-        video_info = self.db.get(
-            collection="videos",
-            ids=[self.video_id],
-            output_fields=["title", "text"],
         )
 
         # Build the context for the current question
@@ -169,8 +131,8 @@ class YoutubeVideoAgent:
         messages = [
             SystemMessage(
                 content=SYSTEM_MESSAGE.format(
-                    video_title=video_info[0]["title"] if video_info else "",
-                    video_description=video_info[0]["text"] if video_info else "",
+                    video_title=self.video_info.title,
+                    video_description=self.video_info.description,
                     transcript_text=transcript_text,
                 )
             )
@@ -223,7 +185,7 @@ class YoutubeVideoAgent:
         max_history_messages: int = 10,
     ):
         llm = OpenAIModel()
-        db = VectorDB()
+        db = PineconeDB()
         return cls(
             video_id=video_id,
             llm=llm,
