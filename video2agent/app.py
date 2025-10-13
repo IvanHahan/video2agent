@@ -24,7 +24,11 @@ async def start():
         content="👋 Welcome to Video2Agent! \n\n"
         "I can help you chat with any YouTube video. "
         "Just provide me with a YouTube video ID or URL, and I'll process it for you.\n\n"
-        "**Example:** `48ZK2JcoHyU` or `https://www.youtube.com/watch?v=48ZK2JcoHyU`"
+        "**Example:** `48ZK2JcoHyU` or `https://www.youtube.com/watch?v=48ZK2JcoHyU`\n\n"
+        "**Commands:**\n"
+        "- `/video` - Switch to a new video\n"
+        "- `/clear` - Clear chat history\n"
+        "- `/history` - View chat history"
     ).send()
 
     # Ask for video ID
@@ -130,8 +134,10 @@ async def main(message: cl.Message):
                 try:
                     agent.process_youtube_video(new_video_id, languages=["en", "uk"])
                     cl.user_session.set("video_processed", True)
+                    # Clear history when switching videos
+                    agent.clear_history()
 
-                    msg.content = f"✅ Video `{new_video_id}` has been processed successfully!\n\nYou can now ask questions about the video."
+                    msg.content = f"✅ Video `{new_video_id}` has been processed successfully!\n\nChat history has been cleared. You can now ask questions about the video."
                     await msg.update()
 
                 except Exception as e:
@@ -139,6 +145,32 @@ async def main(message: cl.Message):
                     await msg.update()
             else:
                 await cl.Message(content="❌ Invalid video ID or URL.").send()
+        return
+
+    if message.content.lower().startswith("/clear"):
+        # Clear chat history
+        agent.clear_history()
+        await cl.Message(
+            content="🗑️ Chat history has been cleared. Your next question will start a fresh conversation."
+        ).send()
+        return
+
+    if message.content.lower().startswith("/history"):
+        # Show current chat history
+        history = agent.get_history()
+        if not history:
+            await cl.Message(content="📭 No chat history yet.").send()
+        else:
+            history_text = f"📜 **Chat History** ({len(history)} messages):\n\n"
+            for i, msg in enumerate(history, 1):
+                role = "**You**" if msg["role"] == "user" else "**Assistant**"
+                content = (
+                    msg["content"][:100] + "..."
+                    if len(msg["content"]) > 100
+                    else msg["content"]
+                )
+                history_text += f"{i}. {role}: {content}\n\n"
+            await cl.Message(content=history_text).send()
         return
 
     # Show thinking indicator
