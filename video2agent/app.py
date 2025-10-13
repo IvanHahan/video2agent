@@ -11,11 +11,8 @@ async def start():
     """Initialize the chat session and prompt user for video ID."""
     global agent
 
-    # Initialize the agent
-    agent = VideoAgent.build()
-
-    # Store agent in user session
-    cl.user_session.set("agent", agent)
+    # Store initial state in user session
+    cl.user_session.set("agent", None)
     cl.user_session.set("video_id", None)
     cl.user_session.set("video_processed", False)
 
@@ -49,10 +46,11 @@ async def start():
             await msg.send()
 
             try:
-                # Process the video
-                agent.process_youtube_video(video_id, languages=["en", "uk"])
+                # Create agent with the video (processing happens in __init__)
+                agent = VideoAgent.build(video_id=video_id, languages=["en", "uk"])
 
                 # Update session only after successful processing
+                cl.user_session.set("agent", agent)
                 cl.user_session.set("video_id", video_id)
                 cl.user_session.set("video_processed", True)
 
@@ -131,13 +129,13 @@ async def main(message: cl.Message):
                 await msg.send()
 
                 try:
-                    # Clear history BEFORE processing new video
-                    agent.clear_history()
+                    # Create a new agent with the new video
+                    new_agent = VideoAgent.build(
+                        video_id=new_video_id, languages=["en", "uk"]
+                    )
 
-                    # Process the new video (this will delete old transcript data)
-                    agent.process_youtube_video(new_video_id, languages=["en", "uk"])
-
-                    # Update session with new video ID
+                    # Update session with new agent and video ID
+                    cl.user_session.set("agent", new_agent)
                     cl.user_session.set("video_id", new_video_id)
                     cl.user_session.set("video_processed", True)
 
@@ -170,7 +168,7 @@ async def main(message: cl.Message):
     try:
         # Stream answer from agent
         full_response = ""
-        for chunk in agent.stream(message.content, video_id):
+        for chunk in agent.stream(message.content):
             full_response += chunk
             msg.content = full_response
             await msg.update()

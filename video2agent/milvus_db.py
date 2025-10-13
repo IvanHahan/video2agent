@@ -292,7 +292,9 @@ class VectorDB:
             logger.error(f"Upsert failed for collection {collection}: {str(e)}")
             raise
 
-    def delete(self, collection: str, filter_expr: str) -> int:
+    def delete(
+        self, collection: str, filter_expr: str = None, ids: List[str] = None
+    ) -> int:
         """
         Delete documents from a collection based on filter expression.
 
@@ -304,7 +306,9 @@ class VectorDB:
             Number of deleted documents
         """
         try:
-            result = self.client.delete(collection_name=collection, filter=filter_expr)
+            result = self.client.delete(
+                collection_name=collection, ids=ids, filter=filter_expr
+            )
             logger.info(f"Deleted documents from collection {collection}")
             return result
         except Exception as e:

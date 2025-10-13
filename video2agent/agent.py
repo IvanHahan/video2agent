@@ -1,8 +1,8 @@
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
-from .db import VectorDB
 from .llm import OpenAIModel
+from .milvus_db import VectorDB
 from .prompts import SYSTEM_MESSAGE
 from .youtube import (
     get_video_transcript,
@@ -12,16 +12,60 @@ from .youtube import (
 
 
 class VideoAgent:
-    def __init__(self, llm: ChatOpenAI, db: VectorDB, max_history_messages: int = 5):
+    def __init__(
+        self,
+        video_id: str,
+        llm: ChatOpenAI,
+        db: VectorDB,
+        languages: list[str] = None,
+        max_history_messages: int = 5,
+    ):
+        self.video_id = video_id
         self.llm = llm
         self.db = db
         self.max_history_messages = max_history_messages
         self.chat_history = []  # List of tuples: (role, content)
 
-    def process_youtube_video(self, video_id: str, languages: list[str]):
+        # Process the video and create vector index during initialization
+        if languages is None:
+            languages = ["en"]
+        self._process_youtube_video(languages)
+        self.video_info = self.db.get(
+            collection="videos",
+            ids=[self.video_id],
+            output_fields=["title", "text"],
+        )
+
+    def __del__(self):
+        """Destructor to clean up video data when the agent instance is destroyed."""
+        try:
+            # Delete all transcript snippets for this video
+            self.db.delete(
+                collection="transcripts", filter_expr=f"video_id == '{self.video_id}'"
+            )
+
+            # Delete the video metadata
+            self.db.delete(
+                collection="videos",
+                ids=[self.video_id],
+            )
+        except Exception as e:
+            # Silently handle errors during cleanup to avoid issues during shutdown
+            pass
+
+    def _process_youtube_video(self, languages: list[str]):
+        """Process the video and store its transcript in the vector database."""
+        # Check if video already exists in the database
+        existing_video = self.db.get(
+            collection="videos",
+            ids=[self.video_id],
+            output_fields=["id"],
+        )
+        if existing_video:
+            return
         # Fetch video info and transcript
-        video_info = get_youtube_video_info(video_id)
-        transcript = get_video_transcript(video_id, languages=languages)
+        video_info = get_youtube_video_info(self.video_id)
+        transcript = get_video_transcript(self.video_id, languages=languages)
 
         # Merge transcript snippets to fit within token limits
         merged_transcript = merge_transcript_snippets(transcript, max_tokens=500)
@@ -31,8 +75,8 @@ class VideoAgent:
             collection="transcripts",
             documents=[
                 {
-                    "id": f"{video_id}_{i}",
-                    "video_id": video_id,
+                    "id": f"{self.video_id}_{i}",
+                    "video_id": self.video_id,
                     "text": t.text,
                     "keywords": t.text,
                     "start": t.start,
@@ -47,7 +91,7 @@ class VideoAgent:
             collection="videos",
             documents=[
                 {
-                    "id": video_id,
+                    "id": self.video_id,
                     "title": video_info.title,
                     "text": video_info.description,
                     "keywords": video_info.description,
@@ -56,19 +100,14 @@ class VideoAgent:
             texts=[video_info.description],
         )
 
-    def run(self, user_question, video_id: str):
+    def run(self, user_question: str):
         # Retrieve relevant transcript snippets from the database
         relevant_snippets = self.db.search(
             collection="transcripts",
             text=user_question,
-            filter=f"video_id == '{video_id}'",
+            filter=f"video_id == '{self.video_id}'",
             output_fields=["text"],
             top_k=5,
-        )
-        video_info = self.db.get(
-            collection="videos",
-            ids=[video_id],
-            output_fields=["title", "text"],
         )
 
         # Build the context for the current question
@@ -78,8 +117,10 @@ class VideoAgent:
         messages = [
             SystemMessage(
                 content=SYSTEM_MESSAGE.format(
-                    video_title=video_info[0]["title"] if video_info else "",
-                    video_description=video_info[0]["text"] if video_info else "",
+                    video_title=self.video_info[0]["title"] if self.video_info else "",
+                    video_description=(
+                        self.video_info[0]["text"] if self.video_info else ""
+                    ),
                     transcript_text=transcript_text,
                 )
             )
@@ -107,19 +148,19 @@ class VideoAgent:
 
         return response
 
-    def stream(self, user_question, video_id: str):
+    def stream(self, user_question: str):
         """Stream responses from the agent."""
         # Retrieve relevant transcript snippets from the database
         relevant_snippets = self.db.search(
             collection="transcripts",
             text=user_question,
-            filter=f"video_id == '{video_id}'",
+            filter=f"video_id == '{self.video_id}'",
             output_fields=["text"],
             top_k=5,
         )
         video_info = self.db.get(
             collection="videos",
-            ids=[video_id],
+            ids=[self.video_id],
             output_fields=["title", "text"],
         )
 
@@ -177,7 +218,18 @@ class VideoAgent:
         return self.chat_history.copy()
 
     @classmethod
-    def build(cls, max_history_messages: int = 10):
+    def build(
+        cls,
+        video_id: str,
+        languages: list[str] = None,
+        max_history_messages: int = 10,
+    ):
         llm = OpenAIModel()
         db = VectorDB()
-        return cls(llm, db, max_history_messages=max_history_messages)
+        return cls(
+            video_id=video_id,
+            llm=llm,
+            db=db,
+            languages=languages,
+            max_history_messages=max_history_messages,
+        )
