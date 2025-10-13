@@ -3,15 +3,19 @@ from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 from loguru import logger
-from pymilvus import (
-    AnnSearchRequest,
-    DataType,
-    Function,
-    FunctionType,
-    MilvusClient,
-    RRFRanker,
-    model,
-)
+
+try:
+    from pymilvus import (
+        AnnSearchRequest,
+        DataType,
+        Function,
+        FunctionType,
+        MilvusClient,
+        RRFRanker,
+        model,
+    )
+except ImportError:
+    pass
 
 load_dotenv()
 
