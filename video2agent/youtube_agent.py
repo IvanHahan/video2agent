@@ -1,10 +1,15 @@
+from typing import List
+
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
+from tqdm import tqdm
 
 from .db import PineconeDB
 from .llm import OpenAIModel
 from .prompts import SYSTEM_MESSAGE
+from .vlm import VisionModel
 from .youtube import (
+    download_video,
+    extract_frame_at_timecode,
     get_video_transcript,
     get_youtube_video_info,
     merge_transcript_snippets,
@@ -15,13 +20,15 @@ class YoutubeVideoAgent:
     def __init__(
         self,
         video_id: str,
-        llm: ChatOpenAI,
+        llm: OpenAIModel,
+        vlm: VisionModel,
         db: PineconeDB,
         languages: list[str] = None,
         max_history_messages: int = 5,
     ):
         self.video_id = video_id
         self.llm = llm
+        self.vlm = vlm
         self.db = db
         self.max_history_messages = max_history_messages
         self.chat_history = []  # List of tuples: (role, content)
@@ -40,6 +47,11 @@ class YoutubeVideoAgent:
             # Silently handle errors during cleanup to avoid issues during shutdown
             pass
 
+    def _understand_video(self, video_path: str, timecodes: List[int]) -> List[str]:
+        for t in tqdm(timecodes, desc="Understanding video frames..."):
+            frame_path = extract_frame_at_timecode(video_path, t)
+            caption = self.vlm.invoke("Describe this image.", images=[frame_path])
+
     def _process_youtube_video(self, languages: list[str]):
         """Process the video and store its transcript in the vector database."""
         # Check if video already exists in the database
@@ -50,6 +62,8 @@ class YoutubeVideoAgent:
 
         # Merge transcript snippets to fit within token limits
         merged_transcript = merge_transcript_snippets(transcript, max_tokens=500)
+        video_path = download_video(self.video_id)
+        self._understand_video(video_path, [int(t.start) for t in merged_transcript])
         # Store in the database
 
         self.db.upsert(
@@ -186,9 +200,11 @@ class YoutubeVideoAgent:
     ):
         llm = OpenAIModel()
         db = PineconeDB()
+        vlm = VisionModel()
         return cls(
             video_id=video_id,
             llm=llm,
+            vlm=vlm,
             db=db,
             languages=languages,
             max_history_messages=max_history_messages,

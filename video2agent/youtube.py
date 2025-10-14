@@ -119,7 +119,7 @@ def get_video_transcript(
     ]
 
 
-def download_video(video_id: str, output_dir: str = "frames") -> str:
+def download_video(video: str, output_dir: str = "frames") -> str:
     """
     Download a YouTube video to a temporary location.
 
@@ -131,10 +131,12 @@ def download_video(video_id: str, output_dir: str = "frames") -> str:
         Path to the downloaded video file
     """
     # Create output directory if it doesn't exist
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     # Get video stream URL
-    yt = get_youtube_video_info(video_id)
+    yt = get_youtube_video_info(video) if isinstance(video, str) else video
+
+    output_dir = os.path.join(output_dir, yt.video_id)
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     # Try to get 1080p stream first, then fall back to lower resolutions
     stream = (

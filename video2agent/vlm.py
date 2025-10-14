@@ -30,6 +30,20 @@ def image_to_base64(image):
     return img_str.decode()
 
 
+def read_image_as_base64(image_path: str) -> str:
+    """
+    Read an image file and convert it to base64 string.
+
+    Args:
+        image_path: Path to the image file
+
+    Returns:
+        Base64 encoded string of the image
+    """
+    with Image.open(image_path) as image:
+        return image_to_base64(image)
+
+
 class VisionModel(LLM):
     """Enhanced OpenAI model client with response processing capabilities."""
 
@@ -100,7 +114,7 @@ class VisionModel(LLM):
                     {
                         "type": "image_url",
                         "image_url": {
-                            "url": f"data:image/jpeg;base64,{image_to_base64(image)}",
+                            "url": f"data:image/jpeg;base64,{read_image_as_base64(image) if isinstance(image, str) else image_to_base64(image)}",
                         },
                     }
                     for image in images
@@ -151,7 +165,7 @@ class VisionModel(LLM):
                     {
                         "type": "image_url",
                         "image_url": {
-                            "url": f"data:image/jpeg;base64,{image_to_base64(image)}",
+                            "url": f"data:image/jpeg;base64,{read_image_as_base64(image) if isinstance(image, str) else image_to_base64(image)}",
                         },
                     }
                     for image in images
@@ -161,6 +175,12 @@ class VisionModel(LLM):
 
         kwargs["max_tokens"] = kwargs.get("max_tokens", self.max_tokens)
         kwargs["temperature"] = kwargs.get("temperature", self.default_temperature)
+
+        response = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=messages,
+            **kwargs,
+        )
 
         response = self.client.responses.create(
             model=self.model_name,
