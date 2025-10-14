@@ -1,11 +1,35 @@
+import base64
 import os
+from io import BytesIO
 from typing import Any, Iterator, List, Optional
 
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import LLM
 from langchain_core.outputs import GenerationChunk
 from openai import OpenAI
+from PIL import Image
 from pydantic import Field
+
+
+def image_to_base64(image):
+    buffered = BytesIO()
+    image.save(buffered, format="JPEG")
+    img_str = base64.b64encode(buffered.getvalue())
+    return img_str.decode()
+
+
+def read_image_as_base64(image_path: str) -> str:
+    """
+    Read an image file and convert it to base64 string.
+
+    Args:
+        image_path: Path to the image file
+
+    Returns:
+        Base64 encoded string of the image
+    """
+    with Image.open(image_path) as image:
+        return image_to_base64(image)
 
 
 class OpenAIModel(LLM):
@@ -43,13 +67,33 @@ class OpenAIModel(LLM):
         self,
         prompt: str,
         stop: Optional[List[str]] = None,
+        image: Optional[Image.Image] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> str:
         """Send prompt to GPT-5 Nano via OpenAI Responses API."""
+        if image is not None:
+            if isinstance(image, str):
+                image = read_image_as_base64(image)
+            else:
+                image = image_to_base64(image)
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": prompt},
+                        {
+                            "type": "input_image",
+                            "image_url": f"data:image/jpeg;base64,{image}",
+                        },
+                    ],
+                },
+            ]
+        else:
+            messages = [{"role": "user", "content": prompt}]
         response = self.client.responses.create(
             model=self.model,
-            input=[{"role": "user", "content": prompt}],
+            input=messages,
             text={"verbosity": self.verbosity},
             reasoning={"effort": self.reasoning_effort},
         )
@@ -63,13 +107,33 @@ class OpenAIModel(LLM):
         self,
         prompt: str,
         stop: Optional[List[str]] = None,
+        image: Optional[Image.Image] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> Iterator[GenerationChunk]:
         """Stream responses from GPT-5 Nano via OpenAI Responses API."""
+        if image is not None:
+            if isinstance(image, str):
+                image = read_image_as_base64(image)
+            else:
+                image = image_to_base64(image)
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": prompt},
+                        {
+                            "type": "input_image",
+                            "image_url": f"data:image/jpeg;base64,{image}",
+                        },
+                    ],
+                },
+            ]
+        else:
+            messages = [{"role": "user", "content": prompt}]
         stream = self.client.responses.create(
             model=self.model,
-            input=[{"role": "user", "content": prompt}],
+            input=messages,
             text={"verbosity": self.verbosity},
             reasoning={"effort": self.reasoning_effort},
             stream=True,
@@ -90,3 +154,22 @@ class OpenAIModel(LLM):
                 pass
 
                 # Check for stop sequences
+
+
+if __name__ == "__main__":
+    import requests
+
+    model = OpenAIModel()
+
+    prompt = "Describe the image in detail."
+
+    image_url = "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d"
+    image_data = requests.get(image_url).content
+    image = Image.open(BytesIO(image_data))
+
+    response = model.invoke(
+        [{"role": "system", "content": "You are a helpful assistant."}]
+        + [{"role": "user", "content": prompt}],
+        image=image,
+    )
+    print("Response:", response)
