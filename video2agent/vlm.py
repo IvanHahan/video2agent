@@ -6,6 +6,7 @@ from typing import Any, Iterator, List, Optional
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import LLM
 from langchain_core.outputs import GenerationChunk
+from loguru import logger
 from openai import OpenAI, Timeout
 from PIL import Image
 from pydantic import Field
@@ -72,7 +73,6 @@ class VisionModel(LLM):
             max_tries: Maximum number of retry attempts
         """
         super().__init__()
-        self.model_name = model_name or "default"
         self.base_url = base_url
         self.api_key = api_key or os.getenv("HF_TOKEN")
         self.client = self._create_client()
@@ -145,6 +145,18 @@ class VisionModel(LLM):
             elif event.type == "error":
                 pass
 
+    def get_model_name(self) -> Optional[str]:
+        """Get the model name, fetching from server if not specified."""
+        if self._cached_model_name is None:
+            try:
+                models = self.client.models.list()
+                self._cached_model_name = models.data[0].id if models.data else None
+            except Exception as e:
+                logger.error(f"Failed to fetch model name: {e}")
+                self._cached_model_name = "default"
+
+        return self._cached_model_name
+
     @property
     def _llm_type(self) -> str:
         return self.model_name
@@ -182,16 +194,19 @@ class VisionModel(LLM):
             **kwargs,
         )
 
-        response = self.client.responses.create(
-            model=self.model_name,
-            input=messages,
-        )
-        return response
+        # response = self.client.responses.create(
+        #     model=self.get_model_name(),
+        #     input=messages,
+        # )
+        return response.choices[0].message.content
 
 
 if __name__ == "__main__":
     import requests
+    from dotenv import load_dotenv
     from PIL import Image
+
+    load_dotenv()
 
     model = VisionModel(base_url=MODEL_URLS["qwenvl3_30b"])
 
