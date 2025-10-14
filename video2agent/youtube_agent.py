@@ -3,9 +3,11 @@ from typing import List
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from tqdm import tqdm
 
+from .chains import chain_json_with_thinking
+from .data_model import TranscriptSnippet
 from .db import PineconeDB
 from .llm import OpenAIModel
-from .prompts import SYSTEM_MESSAGE
+from .prompts import DESCRIBE_FRAME_PROMPT, SYSTEM_MESSAGE
 from .vlm import MODEL_URLS, VisionModel
 from .youtube import (
     download_video,
@@ -47,10 +49,18 @@ class YoutubeVideoAgent:
             # Silently handle errors during cleanup to avoid issues during shutdown
             pass
 
-    def _understand_video(self, video_path: str, timecodes: List[int]) -> List[str]:
-        for t in tqdm(timecodes, desc="Understanding video frames..."):
-            frame_path = extract_frame_at_timecode(video_path, t)
-            caption = self.vlm.invoke("Describe this image.", images=[frame_path])
+    def _understand_video(
+        self, video_path: str, transcripts: List[TranscriptSnippet]
+    ) -> List[str]:
+        descriptions = []
+        for t in tqdm(transcripts, desc="Understanding video frames..."):
+            frame_path = extract_frame_at_timecode(video_path, t.start)
+            response = chain_json_with_thinking(self.vlm).invoke(
+                DESCRIBE_FRAME_PROMPT.format(transcript_text=t.text),
+                images=[frame_path],
+            )
+            descriptions.append(response.result)
+        return descriptions
 
     def _process_youtube_video(self, languages: list[str]):
         """Process the video and store its transcript in the vector database."""
@@ -63,7 +73,7 @@ class YoutubeVideoAgent:
         # Merge transcript snippets to fit within token limits
         merged_transcript = merge_transcript_snippets(transcript, max_tokens=500)
         video_path = download_video(self.video_id)
-        self._understand_video(video_path, [int(t.start) for t in merged_transcript])
+        self._understand_video(video_path, merged_transcript)
         # Store in the database
 
         self.db.upsert(
