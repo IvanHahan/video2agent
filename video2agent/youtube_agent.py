@@ -6,7 +6,7 @@ from tqdm import tqdm
 from .db import PineconeDB
 from .llm import OpenAIModel
 from .prompts import SYSTEM_MESSAGE
-from .vlm import VisionModel
+from .vlm import MODEL_URLS, VisionModel
 from .youtube import (
     download_video,
     extract_frame_at_timecode,
@@ -200,7 +200,7 @@ class YoutubeVideoAgent:
     ):
         llm = OpenAIModel()
         db = PineconeDB()
-        vlm = VisionModel()
+        vlm = VisionModel(base_url=MODEL_URLS["qwenvl3_30b"])
         return cls(
             video_id=video_id,
             llm=llm,

@@ -199,6 +199,6 @@ if __name__ == "__main__":
     response_img = requests.get(image_url)
     img = Image.open(BytesIO(response_img.content))
 
-    response = model.stream("Describe the image.", images=[img])
+    response = model.invoke("Describe the image.", images=[img])
     for chunk in response:
         print(chunk.text, end="", flush=True)
