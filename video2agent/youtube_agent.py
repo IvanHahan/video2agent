@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -40,26 +41,50 @@ class YoutubeVideoAgent:
             languages = ["en"]
         self._process_youtube_video(languages)
 
-    def __del__(self):
-        """Destructor to clean up video data when the agent instance is destroyed."""
-        try:
-            # Delete all transcript snippets for this video
-            self.db.delete(collection="transcripts", filter={"video_id": self.video_id})
-        except Exception as e:
-            # Silently handle errors during cleanup to avoid issues during shutdown
-            pass
+    # def __del__(self):
+    #     """Destructor to clean up video data when the agent instance is destroyed."""
+    #     try:
+    #         # Delete all transcript snippets for this video
+    #         self.db.delete(collection="transcripts", filter={"video_id": self.video_id})
+    #     except Exception as e:
+    #         # Silently handle errors during cleanup to avoid issues during shutdown
+    #         pass
+
+    def _process_single_frame(
+        self, video_path: str, transcript: TranscriptSnippet, index: int
+    ) -> tuple[int, str]:
+        """Process a single frame and return its index and description."""
+        frame_path = extract_frame_at_timecode(video_path, transcript.start)
+        response = chain_json_with_thinking(self.vlm).invoke(
+            DESCRIBE_FRAME_PROMPT.format(transcript_text=transcript.text),
+            images=[frame_path],
+        )
+        return index, response.result
 
     def _understand_video(
-        self, video_path: str, transcripts: List[TranscriptSnippet]
+        self,
+        video_path: str,
+        transcripts: List[TranscriptSnippet],
+        max_workers: int = 4,
     ) -> List[str]:
-        descriptions = []
-        for t in tqdm(transcripts, desc="Understanding video frames..."):
-            frame_path = extract_frame_at_timecode(video_path, t.start)
-            response = chain_json_with_thinking(self.vlm).invoke(
-                DESCRIBE_FRAME_PROMPT.format(transcript_text=t.text),
-                images=[frame_path],
-            )
-            descriptions.append(response.result)
+        descriptions = [None] * len(transcripts)
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_index = {
+                executor.submit(self._process_single_frame, video_path, t, i): i
+                for i, t in enumerate(transcripts)
+            }
+
+            # Process completed tasks with progress bar
+            with tqdm(
+                total=len(transcripts), desc="Understanding video frames..."
+            ) as pbar:
+                for future in as_completed(future_to_index):
+                    index, description = future.result()
+                    descriptions[index] = description
+                    pbar.update(1)
+
         return descriptions
 
     def _process_youtube_video(self, languages: list[str]):
@@ -73,8 +98,7 @@ class YoutubeVideoAgent:
         # Merge transcript snippets to fit within token limits
         merged_transcript = merge_transcript_snippets(transcript, max_tokens=500)
         video_path = download_video(self.video_id)
-        self._understand_video(video_path, merged_transcript)
-        # Store in the database
+        descriptions = self._understand_video(video_path, merged_transcript)
 
         self.db.upsert(
             collection="transcripts",
@@ -85,8 +109,10 @@ class YoutubeVideoAgent:
                     "text": t.text,
                     "start": t.start,
                     "duration": t.duration,
+                    "frame_description": d["description"],
+                    "text_in_frame": d["text_in_frame"],
                 }
-                for i, t in enumerate(merged_transcript)
+                for i, (t, d) in enumerate(zip(merged_transcript, descriptions))
             ],
             texts=[t.text for t in merged_transcript],
         )
