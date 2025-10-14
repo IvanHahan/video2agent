@@ -37,7 +37,7 @@ class OpenAIModel(LLM):
 
     @property
     def _llm_type(self) -> str:
-        return "gpt-5-nano"
+        return self.model
 
     def _call(
         self,
