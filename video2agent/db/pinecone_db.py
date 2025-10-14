@@ -286,7 +286,7 @@ class VectorDB:
         """Set up the necessary indexes in Pinecone."""
         try:
             self._setup_index("transcripts")
-            self._setup_index("frames")
+            # self._setup_index("videos")
             logger.info("Pinecone setup completed successfully")
         except Exception as e:
             logger.error(f"Database setup failed: {str(e)}")

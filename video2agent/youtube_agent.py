@@ -94,14 +94,6 @@ class YoutubeVideoAgent:
         # Fetch video info and transcript
         self.video_info = get_youtube_video_info(self.video_id)
         # Check if video already exists in the database
-        existing_records = self.db.search(
-            collection="transcripts",
-            text="",
-            filter={"video_id": self.video_id},
-            top_k=1,
-        )
-        if existing_records:
-            return  # Video already processed, skip processing
         transcript = get_video_transcript(self.video_id, languages=languages)
 
         # Merge transcript snippets to fit within token limits
@@ -135,7 +127,12 @@ class YoutubeVideoAgent:
         )
 
         # Build the context for the current question
-        transcript_text = "\n".join([snippet["text"] for snippet in relevant_snippets])
+        snippets_descs = "\n\n".join(
+            [
+                f"Transcript {i}: {snippet['text']}\nFragment Description: {snippet['key_info']}"
+                for i, snippet in enumerate(relevant_snippets)
+            ]
+        )
 
         # Build messages list: system + history + current question
         messages = [
@@ -145,7 +142,7 @@ class YoutubeVideoAgent:
                     video_description=(
                         self.video_info[0]["text"] if self.video_info else ""
                     ),
-                    transcript_text=transcript_text,
+                    snippets=snippets_descs,
                 )
             )
         ]
