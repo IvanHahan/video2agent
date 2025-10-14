@@ -5,7 +5,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from tqdm import tqdm
 
 from .data_model import FrameDescription, TranscriptSnippet
-from .db import PineconeDB
+from .db import MongoDB, PineconeDB
 from .llm import OpenAIModel
 from .prompts import DESCRIBE_FRAME_PROMPT, SYSTEM_MESSAGE
 from .vlm import MODEL_URLS, VisionModel
@@ -24,7 +24,8 @@ class YoutubeVideoAgent:
         video_id: str,
         llm: OpenAIModel,
         vlm: VisionModel,
-        db: PineconeDB,
+        db: MongoDB,
+        vector_store: PineconeDB,
         languages: list[str] = None,
         max_history_messages: int = 5,
     ):
@@ -32,6 +33,7 @@ class YoutubeVideoAgent:
         self.llm = llm
         self.vlm = vlm
         self.db = db
+        self.vector_store = vector_store
         self.max_history_messages = max_history_messages
         self.chat_history = []  # List of tuples: (role, content)
 
@@ -91,8 +93,23 @@ class YoutubeVideoAgent:
         """Process the video and store its transcript in the vector database."""
         # Check if video already exists in the database
 
+        existing = self.db.query_one(
+            collection="videos", filter={"video_id": self.video_id}
+        )
         # Fetch video info and transcript
         self.video_info = get_youtube_video_info(self.video_id)
+        if existing:
+            return
+
+        self.db.upsert(
+            collection="videos",
+            filter={"video_id": self.video_id},
+            data={
+                "video_id": self.video_id,
+                "title": self.video_info.title,
+                "description": self.video_info.description,
+            },
+        )
         # Check if video already exists in the database
         transcript = get_video_transcript(self.video_id, languages=languages)
 
@@ -101,7 +118,7 @@ class YoutubeVideoAgent:
         video_path = download_video(self.video_id)
         descriptions = self._understand_video(video_path, merged_transcript)
 
-        self.db.upsert(
+        self.vector_store.upsert(
             collection="transcripts",
             documents=[
                 {
@@ -119,7 +136,7 @@ class YoutubeVideoAgent:
 
     def run(self, user_question: str):
         # Retrieve relevant transcript snippets from the database
-        relevant_snippets = self.db.search(
+        relevant_snippets = self.vector_store.search(
             collection="transcripts",
             text=user_question,
             filter={"video_id": self.video_id},
@@ -172,7 +189,7 @@ class YoutubeVideoAgent:
     def stream(self, user_question: str):
         """Stream responses from the agent."""
         # Retrieve relevant transcript snippets from the database
-        relevant_snippets = self.db.search(
+        relevant_snippets = self.vector_store.search(
             collection="transcripts",
             text=user_question,
             filter={"video_id": self.video_id},
@@ -182,7 +199,7 @@ class YoutubeVideoAgent:
         # Build the context for the current question
         snippets_descs = "\n\n".join(
             [
-                f"Transcript {i}: {snippet['text']}\nFragment Description: {snippet['key_info']}"
+                f"Transcript {i}: {snippet['text']}\nFragment Description: {snippet['details']}"
                 for i, snippet in enumerate(relevant_snippets)
             ]
         )
@@ -244,13 +261,15 @@ class YoutubeVideoAgent:
         max_history_messages: int = 10,
     ):
         llm = OpenAIModel()
-        db = PineconeDB()
+        db = MongoDB()
         vlm = VisionModel(base_url=MODEL_URLS["qwenvl3_30b"])
+        vector_store = PineconeDB()
         return cls(
             video_id=video_id,
             llm=llm,
             vlm=vlm,
             db=db,
+            vector_store=vector_store,
             languages=languages,
             max_history_messages=max_history_messages,
         )
