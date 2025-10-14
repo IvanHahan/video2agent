@@ -54,7 +54,7 @@ class YoutubeVideoAgent:
     ) -> tuple[int, FrameDescription]:
         """Process a single frame and return its index and description."""
         frame_path = extract_frame_at_timecode(video_path, transcript.start)
-        response = self.llm.invoke(
+        response = self.llm._call(
             DESCRIBE_FRAME_PROMPT.format(transcript_text=transcript.text),
             image=frame_path,
             text_format=FrameDescription,
@@ -180,15 +180,19 @@ class YoutubeVideoAgent:
         )
 
         # Build the context for the current question
-        transcript_text = "\n".join([snippet["text"] for snippet in relevant_snippets])
-
+        snippets_descs = "\n\n".join(
+            [
+                f"Transcript {i}: {snippet['text']}\nFragment Description: {snippet['key_info']}"
+                for i, snippet in enumerate(relevant_snippets)
+            ]
+        )
         # Build messages list: system + history + current question
         messages = [
             SystemMessage(
                 content=SYSTEM_MESSAGE.format(
                     video_title=self.video_info.title,
                     video_description=self.video_info.description,
-                    transcript_text=transcript_text,
+                    snippets=snippets_descs,
                 )
             )
         ]

@@ -103,6 +103,7 @@ class OpenAIModel(LLM):
                 text_format=text_format,
                 **kwargs,
             )
+            output = response.output_parsed
         else:
             response = self.client.responses.create(
                 model=self.model,
@@ -113,11 +114,11 @@ class OpenAIModel(LLM):
                 },
                 **kwargs,
             )
-        text = response.output_text.strip()
-        if stop:
-            for s in stop:
-                text = text.split(s)[0]
-        return text
+            output = response.output_text.strip()
+            if stop:
+                for s in stop:
+                    output = output.split(s)[0]
+        return output
 
     def _stream(
         self,
