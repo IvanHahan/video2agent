@@ -4,7 +4,7 @@ from typing import List
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from tqdm import tqdm
 
-from .data_model import BulletList, TranscriptSnippet
+from .data_model import BulletList, BulletPoint, TranscriptSnippet
 from .db import MongoDB, PineconeDB
 from .llm import OpenAIModel
 from .prompts import DESCRIBE_FRAME_PROMPT, SYSTEM_MESSAGE
@@ -68,7 +68,7 @@ class YoutubeVideoAgent:
         video_path: str,
         transcripts: List[TranscriptSnippet],
         max_workers: int = 4,
-    ) -> List[str]:
+    ) -> List[BulletPoint]:
         descriptions = [None] * len(transcripts)
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -87,7 +87,7 @@ class YoutubeVideoAgent:
                     descriptions[index] = description
                     pbar.update(1)
 
-        return descriptions
+        return [b for bl in descriptions for b in bl.bullets]
 
     def _process_youtube_video(self, languages: list[str]):
         """Process the video and store its transcript in the vector database."""
@@ -116,7 +116,7 @@ class YoutubeVideoAgent:
         # Merge transcript snippets to fit within token limits
         merged_transcript = merge_transcript_snippets(transcript, max_tokens=500)
         video_path = download_video(self.video_id)
-        descriptions = self._understand_video(video_path, merged_transcript)
+        bullets = self._understand_video(video_path, merged_transcript)
 
         self.vector_store.upsert(
             collection="transcripts",
@@ -124,14 +124,12 @@ class YoutubeVideoAgent:
                 {
                     "id": f"{self.video_id}_{i}",
                     "video_id": self.video_id,
-                    "text": t.text,
-                    "start": t.start,
-                    "duration": t.duration,
-                    "details": d.key_info,
+                    "text": b.text,
+                    "start": b.timecode,
                 }
-                for i, (t, d) in enumerate(zip(merged_transcript, descriptions))
+                for i, b in enumerate(bullets)
             ],
-            texts=[t.text for t in merged_transcript],
+            texts=[t.text for t in bullets],
         )
 
     def run(self, user_question: str):
@@ -140,7 +138,7 @@ class YoutubeVideoAgent:
             collection="transcripts",
             text=user_question,
             filter={"video_id": self.video_id},
-            top_k=5,
+            top_k=10,
         )
 
         # Build the context for the current question
