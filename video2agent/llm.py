@@ -1,7 +1,7 @@
 import base64
 import os
 from io import BytesIO
-from typing import Any, Iterator, List, Optional
+from typing import Any, Iterator, List, Optional, Type
 
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import LLM
@@ -68,6 +68,7 @@ class OpenAIModel(LLM):
         prompt: str,
         stop: Optional[List[str]] = None,
         image: Optional[Image.Image] = None,
+        text_format: Optional[Type] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> str:
@@ -91,12 +92,27 @@ class OpenAIModel(LLM):
             ]
         else:
             messages = [{"role": "user", "content": prompt}]
-        response = self.client.responses.create(
-            model=self.model,
-            input=messages,
-            text={"verbosity": self.verbosity},
-            reasoning={"effort": self.reasoning_effort},
-        )
+        if text_format is not None:
+            response = self.client.responses.parse(
+                model=self.model,
+                input=messages,
+                text={"verbosity": kwargs.pop("verbosity", self.verbosity)},
+                reasoning={
+                    "effort": kwargs.pop("reasoning_effort", self.reasoning_effort)
+                },
+                text_format=text_format,
+                **kwargs,
+            )
+        else:
+            response = self.client.responses.create(
+                model=self.model,
+                input=messages,
+                text={"verbosity": kwargs.pop("verbosity", self.verbosity)},
+                reasoning={
+                    "effort": kwargs.pop("reasoning_effort", self.reasoning_effort)
+                },
+                **kwargs,
+            )
         text = response.output_text.strip()
         if stop:
             for s in stop:
@@ -134,9 +150,10 @@ class OpenAIModel(LLM):
         stream = self.client.responses.create(
             model=self.model,
             input=messages,
-            text={"verbosity": self.verbosity},
-            reasoning={"effort": self.reasoning_effort},
+            text={"verbosity": kwargs.pop("verbosity", self.verbosity)},
+            reasoning={"effort": kwargs.pop("reasoning_effort", self.reasoning_effort)},
             stream=True,
+            **kwargs,
         )
 
         for event in stream:

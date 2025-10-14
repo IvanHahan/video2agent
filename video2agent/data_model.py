@@ -14,3 +14,7 @@ class TranscriptSnippet(BaseModel):
     text: str
     start: float  # Start time in seconds
     duration: float  # Duration in seconds
+
+
+class FrameDescription(BaseModel):
+    key_info: str

@@ -4,8 +4,7 @@ from typing import List
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from tqdm import tqdm
 
-from .chains import chain_json_with_thinking
-from .data_model import TranscriptSnippet
+from .data_model import FrameDescription, TranscriptSnippet
 from .db import PineconeDB
 from .llm import OpenAIModel
 from .prompts import DESCRIBE_FRAME_PROMPT, SYSTEM_MESSAGE
@@ -52,12 +51,13 @@ class YoutubeVideoAgent:
 
     def _process_single_frame(
         self, video_path: str, transcript: TranscriptSnippet, index: int
-    ) -> tuple[int, str]:
+    ) -> tuple[int, FrameDescription]:
         """Process a single frame and return its index and description."""
         frame_path = extract_frame_at_timecode(video_path, transcript.start)
-        response = chain_json_with_thinking(self.vlm).invoke(
+        response = self.llm.invoke(
             DESCRIBE_FRAME_PROMPT.format(transcript_text=transcript.text),
-            images=[frame_path],
+            image=frame_path,
+            text_format=FrameDescription,
         )
         return index, response.result
 
@@ -93,6 +93,15 @@ class YoutubeVideoAgent:
 
         # Fetch video info and transcript
         self.video_info = get_youtube_video_info(self.video_id)
+        # Check if video already exists in the database
+        existing_records = self.db.search(
+            collection="transcripts",
+            text="",
+            filter={"video_id": self.video_id},
+            top_k=1,
+        )
+        if existing_records:
+            return  # Video already processed, skip processing
         transcript = get_video_transcript(self.video_id, languages=languages)
 
         # Merge transcript snippets to fit within token limits
@@ -109,8 +118,7 @@ class YoutubeVideoAgent:
                     "text": t.text,
                     "start": t.start,
                     "duration": t.duration,
-                    "frame_description": d["description"],
-                    "text_in_frame": d["text_in_frame"],
+                    "details": d.key_info,
                 }
                 for i, (t, d) in enumerate(zip(merged_transcript, descriptions))
             ],

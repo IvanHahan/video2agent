@@ -40,17 +40,16 @@ Use the provided transcripts to understand the context of the video and describe
 
 ## Instructions:
 - Analyze transcript and frame content.
-- Provide a detailed description of the frame content.
+- Provide a detailed key information of the frame content.
 - Include any text that should be read from the frame.
 - Mention any notable objects, actions, or context visible in the frame.
 
 ## Response Schema:
 {{
-    "description": "<detailed description of the frame content>",
-    "text_in_frame": "<any text that should be read from the frame, or 'None' if no text is present>",
+    "key_info": "<detailed description of key information in the frame considering transcript context>",
 }}
-
-## Response Template (strictly follow, including tags):
-<reasoning>brief, numbered steps (8 max, <=20 words each). No secrets or hidden scratchwork.</reasoning>
-<result>response_json</result>
 """
+## Response Template (strictly follow, including tags):
+# <reasoning>brief, numbered steps (8 max, <=20 words each). No secrets or hidden scratchwork.</reasoning>
+# <result>response_json</result>
+# """
