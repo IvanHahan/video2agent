@@ -59,7 +59,7 @@ class YoutubeVideoAgent:
             image=frame_path,
             text_format=FrameDescription,
         )
-        return index, response.result
+        return index, response
 
     def _understand_video(
         self,
