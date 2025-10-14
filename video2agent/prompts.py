@@ -32,7 +32,7 @@ DESCRIBE_FRAME_PROMPT = """
 You are an AI assistant that describes the content of video frame in detail.
 You will be provided with a video frame and transcripts from a YouTube video at this moment.
 
-Use the provided transcripts to understand the context of the video and describe the frame in detail.
+Use the given information about a video fragment to create a list of detailed key bullet points about the video fragment.
 
 ## Transcripts:
 ```
@@ -41,13 +41,17 @@ Use the provided transcripts to understand the context of the video and describe
 
 ## Instructions:
 - Analyze transcript and frame content.
-- Provide a detailed key information of the frame content.
-- Include any text that should be read from the frame.
-- Mention any notable objects, actions, or context visible in the frame.
+- Extract all factual information from frame and transcript.
+- Do not format bullet points as "frame shows" or "in the frame we see". Just state the facts.
+- Be very thorough and detailed to capture as much information as possible.
+- Include timecode for every bullet point in [hh:mm:ss] format.
 
 ## Response Schema:
 {{
-    "key_info": "<detailed description of key information in the frame considering transcript context>",
+    "bullets": [
+    {{"text": "detailed key information about the video fragment", "timecode": "hh:mm:ss"}},
+    ...
+    ]  # List of detailed key information about the video fragment
 }}
 """
 ## Response Template (strictly follow, including tags):

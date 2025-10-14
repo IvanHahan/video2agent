@@ -16,5 +16,10 @@ class TranscriptSnippet(BaseModel):
     duration: float  # Duration in seconds
 
 
-class FrameDescription(BaseModel):
-    key_info: str
+class BulletPoint(BaseModel):
+    text: str
+    timecode: str  # Timecode in [hh:mm:ss] format
+
+
+class BulletList(BaseModel):
+    bullets: List[BulletPoint]

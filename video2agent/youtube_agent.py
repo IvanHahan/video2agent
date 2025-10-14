@@ -4,7 +4,7 @@ from typing import List
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from tqdm import tqdm
 
-from .data_model import FrameDescription, TranscriptSnippet
+from .data_model import BulletList, TranscriptSnippet
 from .db import MongoDB, PineconeDB
 from .llm import OpenAIModel
 from .prompts import DESCRIBE_FRAME_PROMPT, SYSTEM_MESSAGE
@@ -53,13 +53,13 @@ class YoutubeVideoAgent:
 
     def _process_single_frame(
         self, video_path: str, transcript: TranscriptSnippet, index: int
-    ) -> tuple[int, FrameDescription]:
+    ) -> tuple[int, BulletList]:
         """Process a single frame and return its index and description."""
         frame_path = extract_frame_at_timecode(video_path, transcript.start)
         response = self.llm._call(
             DESCRIBE_FRAME_PROMPT.format(transcript_text=transcript.text),
             image=frame_path,
-            text_format=FrameDescription,
+            text_format=BulletList,
         )
         return index, response
 
@@ -98,8 +98,8 @@ class YoutubeVideoAgent:
         )
         # Fetch video info and transcript
         self.video_info = get_youtube_video_info(self.video_id)
-        if existing:
-            return
+        # if existing:
+        #     return
 
         self.db.upsert(
             collection="videos",
