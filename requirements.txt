@@ -7,3 +7,4 @@ tiktoken
 langchain_openai
 loguru
 pinecone
+pymongo
