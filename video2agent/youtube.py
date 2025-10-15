@@ -215,7 +215,7 @@ def extract_frames_at_intervals(
 
 
 def extract_frame_at_timecode(
-    video_path: str, timecode: float, output_dir: str = "frames", filename: str = None
+    video_path: str, timecode: float, filename: str = None
 ) -> str:
     """
     Extract a single frame from a video at a specific timecode.
@@ -230,6 +230,7 @@ def extract_frame_at_timecode(
         Path to the extracted frame
     """
     # Create output directory if it doesn't exist
+    output_dir = os.path.dirname(video_path)
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     # Open video with OpenCV
