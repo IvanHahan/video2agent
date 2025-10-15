@@ -98,8 +98,8 @@ class YoutubeVideoAgent:
         )
         # Fetch video info and transcript
         self.video_info = get_youtube_video_info(self.video_id)
-        # if existing:
-        #     return
+        if existing:
+            return
 
         self.db.upsert(
             collection="videos",
@@ -138,7 +138,7 @@ class YoutubeVideoAgent:
             collection="transcripts",
             text=user_question,
             filter={"video_id": self.video_id},
-            top_k=10,
+            top_k=30,
         )
 
         # Build the context for the current question
@@ -197,7 +197,7 @@ class YoutubeVideoAgent:
         # Build the context for the current question
         snippets_descs = "\n\n".join(
             [
-                f"Transcript {i}: {snippet['text']}\nFragment Description: {snippet['details']}"
+                f"Transcript {i}: {snippet['text']}\nFragment Description: {snippet['text']}"
                 for i, snippet in enumerate(relevant_snippets)
             ]
         )
