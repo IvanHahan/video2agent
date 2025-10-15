@@ -202,7 +202,7 @@ class YoutubeVideoAgent:
         # Build the context for the current question
         snippets_descs = "\n\n".join(
             [
-                f"Transcript {i}: {snippet['text']}\nFragment Description: {snippet['text']}"
+                f"- {snippet['start']}{snippet['text']}"
                 for i, snippet in enumerate(relevant_snippets)
             ]
         )
