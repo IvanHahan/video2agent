@@ -8,3 +8,4 @@ langchain_openai
 loguru
 pinecone
 pymongo
+opencv-python-headless
