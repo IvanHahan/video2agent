@@ -103,15 +103,6 @@ class YoutubeVideoAgent:
         if existing:
             return
 
-        self.db.upsert(
-            collection="videos",
-            filter={"video_id": self.video_id},
-            data={
-                "video_id": self.video_id,
-                "title": self.video_info.title,
-                "description": self.video_info.description,
-            },
-        )
         # Check if video already exists in the database
         transcript = get_video_transcript(self.video_id, languages=languages)
 
@@ -135,6 +126,15 @@ class YoutubeVideoAgent:
                 for i, b in enumerate(bullets)
             ],
             texts=[t.text for t in bullets],
+        )
+        self.db.upsert(
+            collection="videos",
+            filter={"video_id": self.video_id},
+            data={
+                "video_id": self.video_id,
+                "title": self.video_info.title,
+                "description": self.video_info.description,
+            },
         )
 
     def run(self, user_question: str):
