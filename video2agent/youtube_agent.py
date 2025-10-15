@@ -1,5 +1,4 @@
 import os
-import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
 
@@ -12,8 +11,7 @@ from .llm import OpenAIModel
 from .prompts import DESCRIBE_FRAME_PROMPT, SYSTEM_MESSAGE
 from .vlm import MODEL_URLS, VisionModel
 from .youtube import (
-    download_video,
-    extract_frame_at_timecode,
+    extract_frame_from_youtube_stream,
     get_video_transcript,
     get_youtube_video_info,
     merge_transcript_snippets,
@@ -54,20 +52,21 @@ class YoutubeVideoAgent:
     #         pass
 
     def _process_single_frame(
-        self, video_path: str, transcript: TranscriptSnippet, index: int
+        self, video_id: str, transcript: TranscriptSnippet, index: int
     ) -> tuple[int, BulletList]:
         """Process a single frame and return its index and description."""
-        frame_path = extract_frame_at_timecode(video_path, transcript.start)
+        frame_path = extract_frame_from_youtube_stream(video_id, transcript.start)
         response = self.llm._call(
             DESCRIBE_FRAME_PROMPT.format(transcript_text=transcript.text),
             image=frame_path,
             text_format=BulletList,
         )
+        os.remove(frame_path)
         return index, response
 
     def _understand_video(
         self,
-        video_path: str,
+        video_id: str,
         transcripts: List[TranscriptSnippet],
         max_workers: int = 4,
     ) -> List[BulletPoint]:
@@ -76,7 +75,7 @@ class YoutubeVideoAgent:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
             future_to_index = {
-                executor.submit(self._process_single_frame, video_path, t, i): i
+                executor.submit(self._process_single_frame, video_id, t, i): i
                 for i, t in enumerate(transcripts)
             }
 
@@ -108,11 +107,7 @@ class YoutubeVideoAgent:
 
         # Merge transcript snippets to fit within token limits
         merged_transcript = merge_transcript_snippets(transcript, max_tokens=500)
-        video_path = download_video(self.video_id)
-        bullets = self._understand_video(video_path, merged_transcript)
-        video_dir = os.path.dirname(video_path)
-        if os.path.exists(video_dir):
-            shutil.rmtree(video_dir)
+        bullets = self._understand_video(self.video_id, merged_transcript)
 
         self.vector_store.upsert(
             collection="transcripts",

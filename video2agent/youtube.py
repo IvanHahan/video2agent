@@ -265,6 +265,92 @@ def extract_frame_at_timecode(
     return frame_path
 
 
+def extract_frame_from_youtube_stream(
+    video_id: str, timecode: float, output_dir: str = "frames", filename: str = None
+) -> str:
+    """
+    Extract a single frame from a YouTube video at a specific timecode without downloading the full video.
+    Uses direct streaming to seek to the desired position.
+
+    Args:
+        video_id: YouTube video ID or full YouTube object
+        timecode: Time in seconds where to extract the frame
+        output_dir: Directory to save extracted frame (default: "frames")
+        filename: Optional custom filename (default: auto-generated with timestamp)
+
+    Returns:
+        Path to the extracted frame
+    """
+    # Get YouTube video info
+    yt = get_youtube_video_info(video_id) if isinstance(video_id, str) else video_id
+
+    # Create output directory with video ID
+    output_path = os.path.join(output_dir, yt.video_id)
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+
+    # Get the best available stream (prefer 720p for balance of quality and speed)
+    stream = (
+        yt.streams.filter(
+            adaptive=True, mime_type="video/mp4", resolution="720p"
+        ).first()
+        or yt.streams.filter(
+            adaptive=True, mime_type="video/mp4", resolution="1080p"
+        ).first()
+        or yt.streams.filter(adaptive=True, mime_type="video/mp4")
+        .order_by("resolution")
+        .desc()
+        .first()
+    )
+
+    if not stream:
+        raise ValueError(f"No suitable video stream found for video ID: {yt.video_id}")
+
+    # Get the stream URL
+    stream_url = stream.url
+
+    # Open video stream with OpenCV
+    cap = cv2.VideoCapture(stream_url)
+
+    if not cap.isOpened():
+        raise RuntimeError(f"Failed to open video stream for video ID: {yt.video_id}")
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    # Calculate duration (if total_frames is available, otherwise skip validation)
+    if total_frames > 0:
+        duration = total_frames / fps
+        if timecode < 0 or timecode > duration:
+            cap.release()
+            raise ValueError(
+                f"Timecode {timecode}s is out of range. Video duration is {duration:.2f}s"
+            )
+
+    # Set video position to the desired timecode
+    frame_number = int(timecode * fps)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+
+    # Alternative: seek by milliseconds (sometimes more reliable for streams)
+    cap.set(cv2.CAP_PROP_POS_MSEC, timecode * 1000)
+
+    ret, frame = cap.read()
+    cap.release()
+
+    if not ret:
+        raise RuntimeError(
+            f"Failed to extract frame at timecode {timecode}s from stream"
+        )
+
+    # Generate filename if not provided
+    if filename is None:
+        filename = f"frame_{format_timestamp(timecode)}.jpg"
+
+    frame_path = os.path.join(output_path, filename)
+    cv2.imwrite(frame_path, frame)
+
+    return frame_path
+
+
 def get_video_frames(video_id: str, output_dir: str = "frames", interval: int = 30):
     """
     Extract frames from a YouTube video at specified intervals.
