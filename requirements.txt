@@ -9,3 +9,4 @@ loguru
 pinecone
 pymongo
 opencv-python-headless
+watchdog

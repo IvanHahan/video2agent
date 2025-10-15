@@ -158,6 +158,11 @@ def download_video(video: str, output_dir: str = "frames") -> str:
 
     # Download video to temporary location
     temp_video_path = stream.download(output_path=output_dir, filename="temp_video.mp4")
+
+    # Check if video was successfully downloaded
+    if not os.path.exists(temp_video_path):
+        raise RuntimeError(f"Failed to download video for video ID: {yt.video_id}")
+
     return temp_video_path
 
 
