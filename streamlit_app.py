@@ -52,24 +52,26 @@ def process_video(video_input: str):
     if not video_id:
         return False, "❌ Invalid video ID or URL."
 
-    # try:
-    with st.spinner(f"🔄 Processing video: `{video_id}`..."):
-        # Create a new agent with the new video
-        new_agent = YoutubeVideoAgent.build(video_id=video_id, languages=["en", "uk"])
+    try:
+        with st.spinner(f"🔄 Processing video: `{video_id}`..."):
+            # Create a new agent with the new video
+            new_agent = YoutubeVideoAgent.build(
+                video_id=video_id, languages=["en", "uk"]
+            )
 
-        # Update session state
-        st.session_state.agent = new_agent
-        st.session_state.video_id = video_id
-        st.session_state.video_processed = True
-        st.session_state.messages = []  # Clear chat history
+            # Update session state
+            st.session_state.agent = new_agent
+            st.session_state.video_id = video_id
+            st.session_state.video_processed = True
+            st.session_state.messages = []  # Clear chat history
 
-    return (
-        True,
-        f"✅ Video `{video_id}` has been processed successfully!\n\nChat history has been cleared. You can now ask questions about the video.",
-    )
+        return (
+            True,
+            f"✅ Video `{video_id}` has been processed successfully!\n\nChat history has been cleared. You can now ask questions about the video.",
+        )
 
-    # except Exception as e:
-    #     return False, f"❌ Error processing video: {str(e)}\n\nPlease try again."
+    except Exception as e:
+        return False, f"❌ Error processing video: {str(e)}\n\nPlease try again."
 
 
 def main():
