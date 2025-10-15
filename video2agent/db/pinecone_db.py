@@ -344,3 +344,25 @@ if __name__ == "__main__":
         texts=[t.text for t in transcript],
     )
     print("Upsert completed")
+
+
+if __name__ == "__main__":
+    # Clean all data from the Pinecone database
+    db = VectorDB()
+    collections = ["transcripts"]
+
+    for collection in collections:
+        try:
+            # Get collection info to check if it exists
+            info = db.get_collection_info(collection)
+            if info.get("exists"):
+                # Delete all vectors in the namespace
+                index = db.pc.Index(collection)
+                index.delete(delete_all=True, namespace=db.namespace)
+                logger.info(f"Cleaned all data from collection: {collection}")
+            else:
+                logger.info(f"Collection {collection} does not exist")
+        except Exception as e:
+            logger.error(f"Failed to clean collection {collection}: {str(e)}")
+
+    print("Database cleanup completed")

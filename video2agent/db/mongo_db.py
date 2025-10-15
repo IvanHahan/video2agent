@@ -38,3 +38,10 @@ class MongoDB:
     def query_one(self, collection: str, filter: dict) -> dict | None:
         col = self.get_collection(collection)
         return col.find_one(filter)
+
+
+if __name__ == "__main__":
+    mongo_db = MongoDB()
+    # Clean all collections in the database
+    mongo_db.delete(collection="videos", filter={})
+    logger.info("MongoDB cleaned successfully")
