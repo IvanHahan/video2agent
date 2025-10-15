@@ -1,3 +1,5 @@
+import os
+import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
 
@@ -117,6 +119,9 @@ class YoutubeVideoAgent:
         merged_transcript = merge_transcript_snippets(transcript, max_tokens=500)
         video_path = download_video(self.video_id)
         bullets = self._understand_video(video_path, merged_transcript)
+        video_dir = os.path.dirname(video_path)
+        if os.path.exists(video_dir):
+            shutil.rmtree(video_dir)
 
         self.vector_store.upsert(
             collection="transcripts",
