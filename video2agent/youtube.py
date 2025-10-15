@@ -3,9 +3,10 @@ from pathlib import Path
 
 import cv2
 import tiktoken
-from data_model import TranscriptSnippet
 from pytubefix import YouTube
 from youtube_transcript_api import YouTubeTranscriptApi
+
+from .data_model import TranscriptSnippet
 
 
 def format_timestamp(seconds: float) -> str:
