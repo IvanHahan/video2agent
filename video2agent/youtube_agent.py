@@ -68,7 +68,7 @@ class YoutubeVideoAgent:
         self,
         video_id: str,
         transcripts: List[TranscriptSnippet],
-        max_workers: int = 1,
+        max_workers: int = 4,
     ) -> List[BulletPoint]:
         descriptions = [None] * len(transcripts)
 
